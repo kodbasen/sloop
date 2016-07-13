@@ -14,6 +14,8 @@ slup::install_binaries
 
 slup::install_kubelet_service
 
+slup::copy_manifests
+
 kube::multinode::turndown
 
 kube::multinode::bootstrap_daemon

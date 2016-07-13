@@ -3,16 +3,15 @@
 slup::init(){
   K8S_VERSION=v1.3.0
   ARCH=arm64
-  WORKDIR=$BASEDIR/workdir
-  BINDIR=$WORKDIR/usr/bin
+  WORKDIR=/var/lib/kubelet
+  BINDIR=/usr/local/bin
   KUBE_DEPLOY_DIR=$WORKDIR/kube-deploy
-  KUBE_DEPLOY_COMMIT=6b487427136d850f912b25ccf3165ff7bf836a36
-  SYSTEMDDIR=$WORKDIR/serviced
+  KUBE_DEPLOY_COMMIT=master
+  SYSTEMDDIR=/lib/systemd/system
   KUBELET_SRV_FILE=$SYSTEMDDIR/kubelet.service
   RELEASE_URL="https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/$ARCH"
 
-  mkdir -p $SYSTEMDDIR
-  mkdir -p $BINDIR
+  mkdir -p $WORKDIR/bin
 }
 
 slup::clone_kube_deploy(){
@@ -25,14 +24,14 @@ slup::clone_kube_deploy(){
 }
 
 slup::install_binaries(){
-  slup::install_kubelet
+  slup::install_hyperkube
   slup::install_kubectl
 }
 
-slup::install_kubelet(){
-  if [ ! -f "$BINDIR/kubelet" ]; then
-    wget $RELEASE_URL/kubelet -O $BINDIR/kubelet
-    chmod a+x $BINDIR/kubelet
+slup::install_hyperkube(){
+  if [ ! -f "$BINDIR/hyperkube" ]; then
+    wget $RELEASE_URL/hyperkube -O $WORKDIR/bin/hyperkube
+    chmod a+x $WORKDIR/bin/hyperkube
   fi
 }
 
@@ -53,10 +52,8 @@ After=docker.service
 Requires=docker.service
 
 [Service]
-WorkingDirectory=/var/lib/kubelet
-EnvironmentFile=/etc/kubernetes/k8s.conf
-ExecStartPre=mkdir -p /etc/kubernetes/manifests
-ExecStart=/bin/sh -c "exec /etc/kubernetes/binaries/hyperkube kubelet
+WorkingDirectory=${WORKDIR}
+ExecStart=/bin/sh -c "exec /var/lib/kubelet/bin/hyperkube kubelet
   --allow-privileged \\
   --pod_infra_container_image=kubernetesonarm/pause \\
   --api-servers=http://${MASTER_IP}:8080 \\
@@ -66,7 +63,7 @@ ExecStart=/bin/sh -c "exec /etc/kubernetes/binaries/hyperkube kubelet
   --address=0.0.0.0 \\
   --enable-server \\
   --hostname-override=\$(ip -o -4 addr list ${NET_INTERFACE} | awk '{print \$4}' | cut -d/ -f1) \\
-  --config=/etc/kubernetes/manifests"
+  --config=${WORKDIR}/manifests"
 Restart=on-failure
 RestartSec=5
 
@@ -75,7 +72,17 @@ WantedBy=multi-user.target
 EOF
   fi
 
-  #systemctl enable kubelet
+  systemctl enable kubelet
+}
+
+slup::copy_manifests() {
+  CONTAINER_NAME=hyperkube.$RANDOM
+
+  docker run --name $CONTAINER_NAME \
+    gcr.io/google_containers/hyperkube-${ARCH}:${K8S_VERSION}
+
+  docker cp $CONTAINER_NAME:/etc/kubernetes/manifests-multi $WORKDIR/manifests
+  docker rm $CONTAINER_NAME
 }
 
 slup::start_k8s_master(){
