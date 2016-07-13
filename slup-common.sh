@@ -7,8 +7,7 @@ slup::init(){
   BINDIR=/usr/local/bin
   KUBE_DEPLOY_DIR=$BASEDIR/kube-deploy
   KUBE_DEPLOY_COMMIT=master
-  SYSTEMDDIR=/lib/systemd/system
-  KUBELET_SRV_FILE=$SYSTEMDDIR/kubelet.service
+  KUBELET_SRV_FILE=/run/systemd/system/kubelet.service
   RELEASE_URL="https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/$ARCH"
 }
 
