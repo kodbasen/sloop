@@ -8,15 +8,17 @@ slup::init
 
 slup::clone_kube_deploy
 
-#kube::multinode::check_params
+kube::multinode::turndown
+
+slup::main
+
+kube::multinode::check_params
 
 slup::install_binaries
 
 slup::install_kubelet_service
 
 slup::copy_manifests
-
-kube::multinode::turndown
 
 kube::multinode::bootstrap_daemon
 

@@ -5,13 +5,11 @@ slup::init(){
   ARCH=arm64
   WORKDIR=/var/lib/kubelet
   BINDIR=/usr/local/bin
-  KUBE_DEPLOY_DIR=$WORKDIR/kube-deploy
+  KUBE_DEPLOY_DIR=$BASEDIR/kube-deploy
   KUBE_DEPLOY_COMMIT=master
   SYSTEMDDIR=/lib/systemd/system
   KUBELET_SRV_FILE=$SYSTEMDDIR/kubelet.service
   RELEASE_URL="https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/$ARCH"
-
-  mkdir -p $WORKDIR/bin
 }
 
 slup::clone_kube_deploy(){
@@ -21,6 +19,14 @@ slup::clone_kube_deploy(){
     cd $KUBE_DEPLOY_DIR; git checkout $KUBE_DEPLOY_COMMIT
   fi
   source $KUBE_DEPLOY_DIR/docker-multinode/common.sh
+  kube::log::status "Slup - sourced kube-deploy scripts"
+}
+
+slup::main(){
+  kube::log::status "Slup - ready to start deploy kube using Slup!"
+  mkdir -p $WORKDIR/bin
+  kube::log::status "Slup - calling kube-deploy turndown"
+  kube::multinode::turndown
 }
 
 slup::install_binaries(){
@@ -30,6 +36,7 @@ slup::install_binaries(){
 
 slup::install_hyperkube(){
   if [ ! -f "$BINDIR/hyperkube" ]; then
+    kube::log::status "Slup - downloading huperkube for native kubelet"
     wget $RELEASE_URL/hyperkube -O $WORKDIR/bin/hyperkube
     chmod a+x $WORKDIR/bin/hyperkube
   fi
@@ -37,6 +44,7 @@ slup::install_hyperkube(){
 
 slup::install_kubectl(){
   if [ ! -f "$BINDIR/kubectl" ]; then
+    kube::log::status "Slup - downloading kubectl"
     wget $RELEASE_URL/kubectl -O $BINDIR/kubectl
     chmod a+x $BINDIR/kubectl
   fi
@@ -44,6 +52,7 @@ slup::install_kubectl(){
 
 slup::install_kubelet_service(){
   if [ ! -f "$KUBELET_SRV_FILE" ]; then
+    kube::log::status "Slup - installing kubelet service"
     cat > $KUBELET_SRV_FILE <<- EOF
 [Unit]
 Description=Kubernetes Kubelet Server
@@ -53,9 +62,8 @@ Requires=docker.service
 
 [Service]
 WorkingDirectory=${WORKDIR}
-ExecStart=/bin/sh -c "exec /var/lib/kubelet/bin/hyperkube kubelet
+ExecStart=/bin/sh -c "exec ${WORKDIR}/bin/hyperkube kubelet
   --allow-privileged \\
-  --pod_infra_container_image=kubernetesonarm/pause \\
   --api-servers=http://${MASTER_IP}:8080 \\
   --cluster-dns=10.0.0.10 \\
   --cluster-domain=cluster.local \\
@@ -71,11 +79,12 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
   fi
-
+  kube::log::status "Slup - enabling kubelet service"
   systemctl enable kubelet
 }
 
 slup::copy_manifests() {
+  kube::log::status "Slup - copying manifests from hyperkube image"
   CONTAINER_NAME=hyperkube.$RANDOM
 
   docker run --name $CONTAINER_NAME \
@@ -86,5 +95,6 @@ slup::copy_manifests() {
 }
 
 slup::start_k8s_master(){
+  kube::log::status "Slup - starting kubelet service"
   systemctl restart kubelet
 }
