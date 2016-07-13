@@ -35,11 +35,10 @@ slup::install_binaries(){
 }
 
 slup::install_hyperkube(){
-  mkdir -p $WORKDIR/bin
-  if [ ! -f "$WORKDIR/bin/hyperkube" ]; then
+  if [ ! -f "$BINDIR/hyperkube" ]; then
     kube::log::status "Slup - downloading huperkube for native kubelet"
-    wget $RELEASE_URL/hyperkube -O $WORKDIR/bin/hyperkube
-    chmod a+x $WORKDIR/bin/hyperkube
+    wget $RELEASE_URL/hyperkube -O $BINDIR/hyperkube
+    chmod a+x $BINDIR/hyperkube
   fi
 }
 
@@ -76,7 +75,7 @@ Requires=docker.service
 
 [Service]
 WorkingDirectory=${WORKDIR}
-ExecStart=/bin/sh -c "exec ${WORKDIR}/bin/hyperkube kubelet \\
+ExecStart=/bin/sh -c "exec ${BINDIR}/hyperkube kubelet \\
   --allow-privileged \\
   --api-servers=http://${API_IP}:8080 \\
   --cluster-dns=10.0.0.10 \\

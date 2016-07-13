@@ -19,8 +19,6 @@ slup::install_worker
 
 kube::multinode::bootstrap_daemon
 
-kube::multinode::start_etcd
-
 kube::multinode::start_flannel
 
 kube::multinode::restart_docker
