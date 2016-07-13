@@ -53,6 +53,18 @@ slup::install_kubectl(){
   fi
 }
 
+slup::install_master(){
+  kube::log::status "Slup - installing master MASTER_IP=${MASTER_IP}"
+  MASTER_IP="localhost"
+  slup::install_kubelet_service
+  slup::copy_manifests
+}
+
+slup::install_worker(){
+  "Slup - installing worker MASTER_IP=${MASTER_IP}"
+  slup::install_kubelet_service
+}
+
 slup::install_kubelet_service(){
   if [ ! -f "$KUBELET_SRV_FILE" ]; then
     kube::log::status "Slup - installing kubelet service"
@@ -95,7 +107,15 @@ slup::copy_manifests() {
   docker rm $CONTAINER_NAME
 }
 
-slup::start_k8s_master(){
+slup::start_kubelet(){
   kube::log::status "Slup - starting kubelet service"
   systemctl restart kubelet
+}
+
+slup::turndown(){
+  systemctl stop kubelet
+  systemctl disable kubelet
+  rm -f $KUBELET_SRV_FILE
+  systemctl daemon-reload
+  kube::multinode::turndown
 }
