@@ -38,7 +38,7 @@ slup::install_binaries(){
 }
 
 slup::install_hyperkube(){
-  if [ ! -f "$BINDIR/hyperkube" ]; then
+  if [ ! -f "$WORKDIR/bin/hyperkube" ]; then
     kube::log::status "Slup - downloading huperkube for native kubelet"
     wget $RELEASE_URL/hyperkube -O $WORKDIR/bin/hyperkube
     chmod a+x $WORKDIR/bin/hyperkube
