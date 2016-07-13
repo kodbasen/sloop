@@ -27,9 +27,9 @@ slup::main(){
   kube::multinode::main
   kube::multinode::check_params
   kube::multinode::detect_lsb
-  mkdir -p $WORKDIR/bin
   kube::log::status "Slup - calling kube-deploy turndown"
   kube::multinode::turndown
+  mkdir -p $WORKDIR/bin
 }
 
 slup::install_binaries(){
@@ -65,14 +65,12 @@ Requires=docker.service
 
 [Service]
 WorkingDirectory=${WORKDIR}
-ExecStart=/bin/sh -c "exec ${WORKDIR}/bin/hyperkube kubelet
+ExecStart=/bin/sh -c "exec ${WORKDIR}/bin/hyperkube kubelet \\
   --allow-privileged \\
   --api-servers=http://${MASTER_IP}:8080 \\
   --cluster-dns=10.0.0.10 \\
   --cluster-domain=cluster.local \\
   --v=2 \\
-  --address=0.0.0.0 \\
-  --enable-server \\
   --hostname-override=\$(ip -o -4 addr list ${NET_INTERFACE} | awk '{print \$4}' | cut -d/ -f1) \\
   --config=${WORKDIR}/manifests"
 Restart=on-failure
