@@ -113,9 +113,14 @@ slup::start_kubelet(){
 }
 
 slup::turndown(){
+  kube::log::status "Slup - stopping kubelet service"
   systemctl stop kubelet
+  kube::log::status "Slup - disabling kubelet service"
   systemctl disable kubelet
+  kube::log::status "Slup - removing kubelet service"
   rm -f $KUBELET_SRV_FILE
+  kube::log::status "Slup - relaoding systemd daemon"
   systemctl daemon-reload
+  kube::log::status "Slup - calling kube-deploy turndown"
   kube::multinode::turndown
 }
