@@ -52,14 +52,15 @@ slup::install_kubectl(){
 }
 
 slup::install_master(){
-  kube::log::status "Slup - installing master MASTER_IP=${MASTER_IP}"
-  MASTER_IP="localhost"
+  kube::log::status "Slup - installing master"
+  API_IP="localhost"
   slup::install_kubelet_service
   slup::copy_manifests
 }
 
 slup::install_worker(){
-  "Slup - installing worker MASTER_IP=${MASTER_IP}"
+  "Slup - installing worker master ip=$MASTER_IP"
+  API_IP=$MASTER_IP
   slup::install_kubelet_service
 }
 
@@ -77,7 +78,7 @@ Requires=docker.service
 WorkingDirectory=${WORKDIR}
 ExecStart=/bin/sh -c "exec ${WORKDIR}/bin/hyperkube kubelet \\
   --allow-privileged \\
-  --api-servers=http://${MASTER_IP}:8080 \\
+  --api-servers=http://${API_IP}:8080 \\
   --cluster-dns=10.0.0.10 \\
   --cluster-domain=cluster.local \\
   --v=2 \\
@@ -111,14 +112,16 @@ slup::start_kubelet(){
 }
 
 slup::turndown(){
-  kube::log::status "Slup - stopping kubelet service"
-  systemctl stop kubelet
-  kube::log::status "Slup - disabling kubelet service"
-  systemctl disable kubelet
-  kube::log::status "Slup - removing kubelet service"
-  rm -f $KUBELET_SRV_FILE
-  kube::log::status "Slup - relaoding systemd daemon"
-  systemctl daemon-reload
-  kube::log::status "Slup - calling kube-deploy turndown"
-  kube::multinode::turndown
+  if [ -f "$KUBELET_SRV_FILE" ]; then
+    kube::log::status "Slup - stopping kubelet service"
+    systemctl stop kubelet
+    kube::log::status "Slup - disabling kubelet service"
+    systemctl disable kubelet
+    kube::log::status "Slup - removing kubelet service"
+    rm -f $KUBELET_SRV_FILE
+    kube::log::status "Slup - relaoding systemd daemon"
+    systemctl daemon-reload
+    kube::log::status "Slup - calling kube-deploy turndown"
+    kube::multinode::turndown
+  fi
 }
