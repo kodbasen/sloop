@@ -24,6 +24,9 @@ slup::clone_kube_deploy(){
 
 slup::main(){
   kube::log::status "Slup - ready to start deploy kube using Slup!"
+  kube::multinode::main
+  kube::multinode::check_params
+  kube::multinode::detect_lsb
   mkdir -p $WORKDIR/bin
   kube::log::status "Slup - calling kube-deploy turndown"
   kube::multinode::turndown

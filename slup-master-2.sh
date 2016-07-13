@@ -8,11 +8,7 @@ slup::init
 
 slup::clone_kube_deploy
 
-kube::multinode::turndown
-
 slup::main
-
-kube::multinode::check_params
 
 slup::install_binaries
 
