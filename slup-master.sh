@@ -10,6 +10,8 @@ slup::clone_kube_deploy
 
 slup::main
 
+slup::turndown
+
 slup::install_binaries
 
 slup::install_master

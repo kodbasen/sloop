@@ -23,13 +23,10 @@ slup::clone_kube_deploy(){
 }
 
 slup::main(){
-  kube::log::status "Slup - ready to start deploy kube using Slup!"
   kube::multinode::main
   kube::multinode::check_params
   kube::multinode::detect_lsb
-  kube::log::status "Slup - calling kube-deploy turndown"
-  kube::multinode::turndown
-  mkdir -p $WORKDIR/bin
+  kube::log::status "Slup - ready"
 }
 
 slup::install_binaries(){
@@ -38,6 +35,7 @@ slup::install_binaries(){
 }
 
 slup::install_hyperkube(){
+  mkdir -p $WORKDIR/bin
   if [ ! -f "$WORKDIR/bin/hyperkube" ]; then
     kube::log::status "Slup - downloading huperkube for native kubelet"
     wget $RELEASE_URL/hyperkube -O $WORKDIR/bin/hyperkube

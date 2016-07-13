@@ -11,6 +11,8 @@ slup::clone_kube_deploy
 
 slup::main
 
+slup::turndown
+
 slup::install_hyperkube
 
 slup::install_worker
