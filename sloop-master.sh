@@ -2,6 +2,10 @@
 
 BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+if [[ -z ${MASTER_IP} ]]; then
+  MASTER_IP=$(hostname -I | awk '{print $1}')
+fi
+
 source $BASEDIR/sloop-common.sh
 
 sloop::init
