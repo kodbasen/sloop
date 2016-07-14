@@ -96,6 +96,8 @@ sloop::copy_manifests() {
   kube::log::status "sloop - copying manifests from hyperkube image"
   CONTAINER_NAME=hyperkube.$RANDOM
 
+  mkdir -p $WORKDIR
+
   docker run --name $CONTAINER_NAME \
     gcr.io/google_containers/hyperkube-${ARCH}:${K8S_VERSION}
 
