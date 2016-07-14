@@ -7,7 +7,6 @@ sloop::init(){
   KUBE_DEPLOY_DIR=$BASEDIR/kube-deploy
   KUBE_DEPLOY_COMMIT=04431672403202d9f535a43f34f0899bc8fff1a7
   KUBELET_SRV_FILE=/run/systemd/system/kubelet.service
-  RELEASE_URL="https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/$ARCH"
 }
 
 sloop::clone_kube_deploy(){
@@ -28,6 +27,7 @@ sloop::main(){
 }
 
 sloop::install_binaries(){
+  RELEASE_URL="https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/$ARCH"
   sloop::install_hyperkube
   sloop::install_kubectl
 }
