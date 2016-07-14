@@ -2,19 +2,19 @@
 
 BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source $BASEDIR/slup-common.sh
+source $BASEDIR/sloop-common.sh
 
-slup::init
+sloop::init
 
-slup::clone_kube_deploy
+sloop::clone_kube_deploy
 
-slup::main
+sloop::main
 
-slup::turndown
+sloop::turndown
 
-slup::install_binaries
+sloop::install_binaries
 
-slup::install_master
+sloop::install_master
 
 kube::multinode::bootstrap_daemon
 
@@ -24,4 +24,4 @@ kube::multinode::start_flannel
 
 kube::multinode::restart_docker
 
-slup::start_kubelet
+sloop::start_kubelet

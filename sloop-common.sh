@@ -1,6 +1,6 @@
 #!/bin/bash
 
-slup::init(){
+sloop::init(){
   K8S_VERSION=v1.3.0
   ARCH=arm64
   WORKDIR=/var/lib/kubelet
@@ -11,60 +11,60 @@ slup::init(){
   RELEASE_URL="https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/$ARCH"
 }
 
-slup::clone_kube_deploy(){
+sloop::clone_kube_deploy(){
   if [ ! -d "$KUBE_DEPLOY_DIR" ]; then
     echo "Cloning kube-deploy!"
     git clone https://github.com/kubernetes/kube-deploy.git $KUBE_DEPLOY_DIR
     cd $KUBE_DEPLOY_DIR; git checkout $KUBE_DEPLOY_COMMIT
   fi
   source $KUBE_DEPLOY_DIR/docker-multinode/common.sh
-  kube::log::status "Slup - sourced kube-deploy scripts"
+  kube::log::status "sloop - sourced kube-deploy scripts"
 }
 
-slup::main(){
+sloop::main(){
   kube::multinode::main
   kube::multinode::check_params
   kube::multinode::detect_lsb
-  kube::log::status "Slup - ready"
+  kube::log::status "sloop - ready"
 }
 
-slup::install_binaries(){
-  slup::install_hyperkube
-  slup::install_kubectl
+sloop::install_binaries(){
+  sloop::install_hyperkube
+  sloop::install_kubectl
 }
 
-slup::install_hyperkube(){
+sloop::install_hyperkube(){
   if [ ! -f "$BINDIR/hyperkube" ]; then
-    kube::log::status "Slup - downloading huperkube for native kubelet"
+    kube::log::status "sloop - downloading huperkube for native kubelet"
     wget $RELEASE_URL/hyperkube -O $BINDIR/hyperkube
     chmod a+x $BINDIR/hyperkube
   fi
 }
 
-slup::install_kubectl(){
+sloop::install_kubectl(){
   if [ ! -f "$BINDIR/kubectl" ]; then
-    kube::log::status "Slup - downloading kubectl"
+    kube::log::status "sloop - downloading kubectl"
     wget $RELEASE_URL/kubectl -O $BINDIR/kubectl
     chmod a+x $BINDIR/kubectl
   fi
 }
 
-slup::install_master(){
-  kube::log::status "Slup - installing master"
+sloop::install_master(){
+  kube::log::status "sloop - installing master"
   API_IP="localhost"
-  slup::install_kubelet_service
-  slup::copy_manifests
+  sloop::install_kubelet_service
+  sloop::copy_manifests
 }
 
-slup::install_worker(){
-  "Slup - installing worker master ip=$MASTER_IP"
+sloop::install_worker(){
+  "sloop - installing worker master ip=$MASTER_IP"
   API_IP=$MASTER_IP
-  slup::install_kubelet_service
+  sloop::install_kubelet_service
 }
 
-slup::install_kubelet_service(){
+sloop::install_kubelet_service(){
   if [ ! -f "$KUBELET_SRV_FILE" ]; then
-    kube::log::status "Slup - installing kubelet service"
+    kube::log::status "sloop - installing kubelet service"
     cat > $KUBELET_SRV_FILE <<- EOF
 [Unit]
 Description=Kubernetes Kubelet Server
@@ -89,12 +89,12 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
   fi
-  kube::log::status "Slup - enabling kubelet service"
+  kube::log::status "sloop - enabling kubelet service"
   systemctl enable kubelet
 }
 
-slup::copy_manifests() {
-  kube::log::status "Slup - copying manifests from hyperkube image"
+sloop::copy_manifests() {
+  kube::log::status "sloop - copying manifests from hyperkube image"
   CONTAINER_NAME=hyperkube.$RANDOM
 
   docker run --name $CONTAINER_NAME \
@@ -104,22 +104,22 @@ slup::copy_manifests() {
   docker rm $CONTAINER_NAME
 }
 
-slup::start_kubelet(){
-  kube::log::status "Slup - starting kubelet service"
+sloop::start_kubelet(){
+  kube::log::status "sloop - starting kubelet service"
   systemctl restart kubelet
 }
 
-slup::turndown(){
+sloop::turndown(){
   if [ -f "$KUBELET_SRV_FILE" ]; then
-    kube::log::status "Slup - stopping kubelet service"
+    kube::log::status "sloop - stopping kubelet service"
     systemctl stop kubelet
-    kube::log::status "Slup - disabling kubelet service"
+    kube::log::status "sloop - disabling kubelet service"
     systemctl disable kubelet
-    kube::log::status "Slup - removing kubelet service"
+    kube::log::status "sloop - removing kubelet service"
     rm -f $KUBELET_SRV_FILE
-    kube::log::status "Slup - relaoding systemd daemon"
+    kube::log::status "sloop - relaoding systemd daemon"
     systemctl daemon-reload
-    kube::log::status "Slup - calling kube-deploy turndown"
+    kube::log::status "sloop - calling kube-deploy turndown"
     kube::multinode::turndown
   fi
 }
