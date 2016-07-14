@@ -2,7 +2,6 @@
 
 sloop::init(){
   K8S_VERSION=v1.3.0
-  ARCH=arm64
   WORKDIR=/var/lib/kubelet
   BINDIR=/usr/local/bin
   KUBE_DEPLOY_DIR=$BASEDIR/kube-deploy
