@@ -28,5 +28,6 @@ On your worker nodes:
 ```
 $ git clone https://github.com/kodbasen/sloop.git
 $ cd sloop
+$ export MASTER_IP=<sloop-master IP>
 $ ./sloop-worker.sh
 ```
