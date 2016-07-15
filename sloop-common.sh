@@ -27,6 +27,7 @@ sloop::main(){
 }
 
 sloop::install_binaries(){
+  mkdir -p $BINDIR
   RELEASE_URL="https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/$ARCH"
   sloop::install_hyperkube
   sloop::install_kubectl
