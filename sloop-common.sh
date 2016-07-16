@@ -57,7 +57,7 @@ sloop::install_master(){
 }
 
 sloop::install_worker(){
-  "sloop - installing worker master ip=$MASTER_IP"
+  kube::log::status "sloop - installing worker master ip=$MASTER_IP"
   API_IP=$MASTER_IP
   sloop::install_kubelet_service
 }
