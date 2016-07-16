@@ -73,6 +73,7 @@ After=docker.service
 Requires=docker.service
 
 [Service]
+ExecStartPre=/bin/sh -c "mkdir -p ${WORKDIR}/manifests"
 WorkingDirectory=${WORKDIR}
 ExecStart=/bin/sh -c "exec ${BINDIR}/hyperkube kubelet \\
   --allow-privileged \\
