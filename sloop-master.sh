@@ -29,3 +29,5 @@ kube::multinode::start_flannel
 kube::multinode::restart_docker
 
 sloop::start_kubelet
+
+kube::log::status "Sloop - Done starting master node."

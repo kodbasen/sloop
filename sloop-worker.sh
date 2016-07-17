@@ -24,3 +24,7 @@ kube::multinode::start_flannel
 kube::multinode::restart_docker
 
 sloop::start_kubelet
+
+kube::multinode::start_k8s_worker_proxy
+
+kube::log::status "Sloop - Done starting worker node."
