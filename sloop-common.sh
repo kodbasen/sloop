@@ -27,13 +27,13 @@ sloop::main(){
 }
 
 sloop::install_binaries(){
-  mkdir -p $BINDIR
   RELEASE_URL="https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/$ARCH"
   sloop::install_hyperkube
   sloop::install_kubectl
 }
 
 sloop::install_hyperkube(){
+  mkdir -p $BINDIR
   if [ ! -f "$BINDIR/hyperkube" ]; then
     kube::log::status "sloop - downloading huperkube for native kubelet"
     wget $RELEASE_URL/hyperkube -O $BINDIR/hyperkube
@@ -42,6 +42,7 @@ sloop::install_hyperkube(){
 }
 
 sloop::install_kubectl(){
+  mkdir -p $BINDIR
   if [ ! -f "$BINDIR/kubectl" ]; then
     kube::log::status "sloop - downloading kubectl"
     wget $RELEASE_URL/kubectl -O $BINDIR/kubectl
