@@ -13,7 +13,7 @@ sloop::main
 
 sloop::turndown
 
-sloop::install_hyperkube
+sloop::install_binaries
 
 sloop::install_worker
 
