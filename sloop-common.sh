@@ -73,7 +73,6 @@ After=docker.service
 Requires=docker.service
 
 [Service]
-ExecStartPre=/bin/sh -c "mkdir -p ${WORKDIR}/manifests"
 WorkingDirectory=${WORKDIR}
 ExecStart=/bin/sh -c "exec ${BINDIR}/hyperkube kubelet \\
   --allow-privileged \\
@@ -109,6 +108,7 @@ sloop::copy_manifests() {
 
 sloop::start_kubelet(){
   kube::log::status "sloop - starting kubelet service"
+  mkdir -p ${WORKDIR}/manifests
   systemctl restart kubelet
 }
 
