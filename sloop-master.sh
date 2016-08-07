@@ -8,8 +8,6 @@ source $BASEDIR/sloop-common.sh
 
 sloop::init
 
-sloop::clone_kube_deploy
-
 sloop::main
 
 sloop::turndown

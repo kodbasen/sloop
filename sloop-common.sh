@@ -9,17 +9,28 @@ sloop::init(){
   KUBELET_SRV_FILE=/run/systemd/system/kubelet.service
 }
 
-sloop::clone_kube_deploy(){
+sloop::kube_deploy(){
   if [ ! -d "$KUBE_DEPLOY_DIR" ]; then
-    echo "Cloning kube-deploy!"
-    git clone https://github.com/kubernetes/kube-deploy.git $KUBE_DEPLOY_DIR
-    cd $KUBE_DEPLOY_DIR; git checkout $KUBE_DEPLOY_COMMIT
+    sloop::clone_kube_deploy
+  else
+    echo "Sloop - Checking kube-deploy version"
+    echo "$(git -C ${KUBE_DEPLOY_DIR} rev-parse HEAD)"
+    if [ $KUBE_DEPLOY_COMMIT != "$(git -C ${KUBE_DEPLOY_DIR} rev-parse HEAD)" ]; then
+      cd $KUBE_DEPLOY_DIR; git pull; git checkout $KUBE_DEPLOY_COMMIT
+    fi
   fi
   source $KUBE_DEPLOY_DIR/docker-multinode/common.sh
   kube::log::status "Sloop - Sourced kube-deploy scripts"
 }
 
+sloop::clone_kube_deploy(){
+  echo "Sloop - Cloning kube-deploy!"
+  git clone https://github.com/kubernetes/kube-deploy.git $KUBE_DEPLOY_DIR
+  cd $KUBE_DEPLOY_DIR; git checkout $KUBE_DEPLOY_COMMIT
+}
+
 sloop::main(){
+  sloop::kube_deploy
   kube::multinode::main
   kube::multinode::log_variables
   kube::multinode::turndown
@@ -31,14 +42,14 @@ sloop::check_version(){
   if [ ! -f "$WORKDIR/version" ]; then
     kube::log::status "Sloop - Writing kubernetes version"
     mkdir -p $WORKDIR
-    echo "$K8S_VERSION" > "$WORKDIR/version"
+    echo "$K8S_VERSION" > "$WORKDIR/k8s-version"
   fi
 
-  INSTALLED_K8S_VERSION=$(<${WORKDIR}/version)
+  INSTALLED_K8S_VERSION=$(<${WORKDIR}/k8s-version)
 
   if [ $INSTALLED_K8S_VERSION != $K8S_VERSION ]; then
     kube::log::status "Sloop - Upgrading Kubernetes to version $K8S_VERSION"
-    echo "$K8S_VERSION" > "$WORKDIR/version"
+    echo "$K8S_VERSION" > "$WORKDIR/k8s-version"
     rm -f $BINDIR/kubectl $BINDIR/hyperkube
   fi
 
