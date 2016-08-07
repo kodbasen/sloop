@@ -39,7 +39,9 @@ sloop::main(){
 }
 
 sloop::check_version(){
-  if [ ! -f "$WORKDIR/version" ]; then
+  if [ ! -f "$WORKDIR/k8s-version" ]; then
+    kube::log::status "Sloop - Unknown kubernetes version, removing binaries!"
+    rm -f $BINDIR/kubectl $BINDIR/hyperkube
     kube::log::status "Sloop - Writing kubernetes version"
     mkdir -p $WORKDIR
     echo "$K8S_VERSION" > "$WORKDIR/k8s-version"
