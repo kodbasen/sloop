@@ -17,11 +17,11 @@ sloop::install_binaries
 
 sloop::install_worker
 
-kube::multinode::bootstrap_daemon
+kube::bootstrap::bootstrap_daemon
 
 kube::multinode::start_flannel
 
-kube::multinode::restart_docker
+kube::bootstrap::restart_docker
 
 sloop::start_kubelet
 

@@ -2,9 +2,7 @@
 
 BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-if [[ -z ${MASTER_IP} ]]; then
-  MASTER_IP=$(hostname -I | awk '{print $1}')
-fi
+MASTER_IP=localhost
 
 source $BASEDIR/sloop-common.sh
 
@@ -20,13 +18,13 @@ sloop::install_binaries
 
 sloop::install_master
 
-kube::multinode::bootstrap_daemon
+kube::bootstrap::bootstrap_daemon
 
 kube::multinode::start_etcd
 
 kube::multinode::start_flannel
 
-kube::multinode::restart_docker
+kube::bootstrap::restart_docker
 
 sloop::start_kubelet
 

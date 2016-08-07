@@ -1,2 +1,4 @@
 kube-deploy
 workdir
+Vagrantfile
+.vagrant
