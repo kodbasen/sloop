@@ -7,7 +7,7 @@ The reason for running your `kubelet`:s native is the full support of [Persisten
 
 Sloop uses the best of two world. Docker for bootstrapping your cluster and native `kubelet` for full Kubernetes functionality.
 
-Sloop is currently using Kubernetes `v1.3.0`
+Sloop is currently using the latest stable Kubernetes version (`v1.3.4`).
 
 ## Starting your master
 
