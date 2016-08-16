@@ -7,6 +7,10 @@ sloop::init(){
   KUBE_DEPLOY_COMMIT=969086b076e8f6feb6e9d8c351e620d46bb0b65e
   #KUBE_DEPLOY_COMMIT=master
   KUBELET_SRV_FILE=/run/systemd/system/kubelet.service
+  if [ -f "$BASEDIR/sloop.conf" ]; then
+    echo "Sloop - Reading settings from sloop.conf."
+    source $BASEDIR/sloop.conf
+  fi
 }
 
 sloop::kube_deploy(){
@@ -33,9 +37,15 @@ sloop::main(){
   sloop::kube_deploy
   kube::multinode::main
   kube::multinode::log_variables
-  kube::multinode::turndown
   kube::log::status "Sloop - Ready"
   sloop::check_version
+}
+
+sloop::check_running(){
+    if [[ ! -z $(ps aux | grep "${BOOTSTRAP_DOCKER_SOCK}" | grep -v "grep") ]]; then
+      kube::log::status "Sloop - Kubernetes is running, please turndown first!"
+      exit
+    fi
 }
 
 sloop::check_version(){
@@ -130,6 +140,10 @@ sloop::copy_manifests() {
   CONTAINER_NAME=hyperkube.$RANDOM
 
   mkdir -p $WORKDIR
+  if [ -d "$WORKDIR/manifests" ]; then
+    kube::log::status "Sloop - Removing old manifests"
+    rm -rf $WORKDIR/manifests
+  fi
 
   docker run --name $CONTAINER_NAME \
     gcr.io/google_containers/hyperkube-${ARCH}:${K8S_VERSION}
@@ -152,9 +166,15 @@ sloop::turndown(){
     systemctl disable kubelet
     kube::log::status "Sloop - Removing kubelet service"
     rm -f $KUBELET_SRV_FILE
-    kube::log::status "Sloop - Relaoding systemd daemon"
+    kube::log::status "Sloop - Reloading systemd daemon"
     systemctl daemon-reload
-    kube::log::status "Sloop - Calling kube-deploy turndown"
-    kube::multinode::turndown
+  fi
+
+  kube::log::status "Sloop - Calling kube-deploy turndown"
+  kube::multinode::turndown
+
+  if [ ! -d "$WORKDIR" ]; then
+    kube::log::status "Sloop - Removing flannel subnet"
+    rm -f ${FLANNEL_SUBNET_DIR}/subnet.env
   fi
 }

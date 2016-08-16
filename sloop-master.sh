@@ -10,7 +10,7 @@ sloop::init
 
 sloop::main
 
-sloop::turndown
+sloop::check_running
 
 sloop::install_binaries
 

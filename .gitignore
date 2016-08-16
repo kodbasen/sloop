@@ -2,3 +2,4 @@ kube-deploy
 workdir
 Vagrantfile
 .vagrant
+sloop.conf
