@@ -3,6 +3,8 @@
 BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 source $BASEDIR/sloop-common.sh
+source $BASEDIR/sloop-net.sh
+source $BASEDIR/sloop-weave.sh
 
 sloop::init
 

@@ -123,7 +123,9 @@ ExecStart=/bin/sh -c "exec ${BINDIR}/hyperkube kubelet \\
   --cluster-domain=cluster.local \\
   --v=2 \\
   --hostname-override=\$(ip -o -4 addr list ${NET_INTERFACE} | awk '{print \$4}' | cut -d/ -f1) \\
+  ${CNI_ARGS} \\
   --config=${WORKDIR}/manifests"
+
 Restart=on-failure
 RestartSec=5
 
@@ -177,4 +179,44 @@ sloop::turndown(){
     kube::log::status "Sloop - Removing flannel subnet"
     rm -f ${FLANNEL_SUBNET_DIR}/subnet.env
   fi
+}
+
+sloop::log::info() {
+  timestamp=$(date +"[%m%d %H:%M:%S]")
+  echo "+++ $timestamp $1"
+  shift
+  for message; do
+    echo "    $message"
+  done
+}
+
+# Log an error and exit
+sloop::log::fatal() {
+  timestamp=$(date +"[%m%d %H:%M:%S]")
+  echo "!!! $timestamp ${1-}" >&2
+  shift
+  for message; do
+    echo "    $message" >&2
+  done
+  exit 1
+}
+
+# Print an error to stderr and return with an indicative exit status
+# if the container $1 does not exist or isn't running.
+sloop::check_running() {
+    if ! STATUS=$(docker inspect --format='{{.State.Running}} {{.State.Restarting}}' $1 2>/dev/null) ; then
+        echo  "$1 container is not present. Have you launched it?" >&2
+        return 1
+    elif [ "$STATUS" = "true true" ] ; then
+        echo "$1 container is restarting." >&2
+        return 2
+    elif [ "$STATUS" != "true false" ] ; then
+        echo "$1 container is not running." >&2
+        return 2
+    fi
+}
+
+# Execute $@ only if the weave container is running
+when_weave_running() {
+    ! check_running $CONTAINER_NAME 2>/dev/null || "$@"
 }

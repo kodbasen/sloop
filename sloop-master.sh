@@ -5,6 +5,7 @@ BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 MASTER_IP=localhost
 
 source $BASEDIR/sloop-common.sh
+source $BASEDIR/sloop-net.sh
 
 sloop::init
 
@@ -20,9 +21,10 @@ kube::bootstrap::bootstrap_daemon
 
 kube::multinode::start_etcd
 
-kube::multinode::start_flannel
+sloop::net::start_network
+#kube::multinode::start_flannel
 
-kube::bootstrap::restart_docker
+#kube::bootstrap::restart_docker
 
 sloop::start_kubelet
 

@@ -3,3 +3,5 @@ workdir
 Vagrantfile
 .vagrant
 sloop.conf
+test.sh
+
