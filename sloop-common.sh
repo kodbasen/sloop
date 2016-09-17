@@ -203,7 +203,7 @@ sloop::log::fatal() {
 
 # Print an error to stderr and return with an indicative exit status
 # if the container $1 does not exist or isn't running.
-sloop::check_running() {
+sloop::check_container_running() {
     if ! STATUS=$(docker inspect --format='{{.State.Running}} {{.State.Restarting}}' $1 2>/dev/null) ; then
         echo  "$1 container is not present. Have you launched it?" >&2
         return 1

@@ -22,7 +22,7 @@ sloop::net::start_weave(){
 
   sloop::net::install_weave
 
-  if [ sloop::check_running "weave" 2>/dev/null ]; then
+  if [ sloop::check_container_running "weave" 2>/dev/null ]; then
     sloop::log::info "Weave is allready running"
     return 0
   fi
