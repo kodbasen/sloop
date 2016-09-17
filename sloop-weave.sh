@@ -20,20 +20,25 @@ sloop::net::start_weave(){
     sloop::log::info "WEAVE_PWD_FILE is not set";
   fi
 
+  sloop::net::install_weave
+
+  if [ sloop::check_running "weave" ]; then
+    sloop::log::info "Weave is allready running"
+    return 0
+  fi
+  
   sloop::log::info "Starting weave network ..."
-  if [ sloop::net::install_weave ]; then
-    if [ -z ${WEAVE_GW+x} ]; then
-      sloop::log::info "WEAVE_GW is unset";
-      weave launch $WEAVE_NODES
-      weave expose
-    else
-      sloop::log::info "WEAVE_GW is set to '$WEAVE_GW'";
-      route add $WEAVE_GW gw $(ip route show | grep default | awk '{ print $3}') 2> /dev/null
-      ip route del 0/0
-      weave launch $WEAVE_NODES
-      weave expose
-      route add default gw 10.32.0.1 weave
-    fi
+  if [ -z ${WEAVE_GW+x} ]; then
+    sloop::log::info "WEAVE_GW is unset";
+    weave launch $WEAVE_NODES
+    weave expose
+  else
+    sloop::log::info "WEAVE_GW is set to '$WEAVE_GW'";
+    route add $WEAVE_GW gw $(ip route show | grep default | awk '{ print $3}') 2> /dev/null
+    ip route del 0/0
+    weave launch $WEAVE_NODES
+    weave expose
+    route add default gw 10.32.0.1 weave
   fi
 }
 
