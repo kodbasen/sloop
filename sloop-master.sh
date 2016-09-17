@@ -6,6 +6,7 @@ MASTER_IP=localhost
 
 source $BASEDIR/sloop-common.sh
 source $BASEDIR/sloop-net.sh
+source $BASEDIR/sloop-weave.sh
 
 sloop::init
 

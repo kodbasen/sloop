@@ -22,11 +22,11 @@ sloop::net::start_weave(){
 
   sloop::net::install_weave
 
-  if [ sloop::check_running "weave" ]; then
+  if [ sloop::check_running "weave" 2>/dev/null ]; then
     sloop::log::info "Weave is allready running"
     return 0
   fi
-  
+
   sloop::log::info "Starting weave network ..."
   if [ -z ${WEAVE_GW+x} ]; then
     sloop::log::info "WEAVE_GW is unset";
