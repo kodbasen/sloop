@@ -4,14 +4,37 @@ WEAVE_IMG_ARM="weaveworks/weaveexec:latest"
 WEAVE_IMG_AMD64="kodbasen/weaveexec:latest"
 
 sloop::net::start_weave(){
+
+  # Weave nodes
   if [ -z ${WEAVE_NODES+x} ]; then
     sloop::log::fatal "WEAVE_NODES is unset";
   else
     sloop::log::info "WEAVE_NODES is set to '$WEAVE_NODES'";
   fi
+
+  # Weave password for encryption
+  if [ -f "${WEAVE_PWD_FILE}" ]; then
+    sloop::log::info "WEAVE_PWD_FILE is set to '$WEAVE_PWD_FILE'";
+    WEAVE_PASSWORD=$(cat ${WEAVE_PWD_FILE})
+  else
+    sloop::log::info "WEAVE_PWD_FILE is not set";
+  fi
+
   sloop::log::info "Starting weave network ..."
-  sloop::net::install_weave
-  sloop::net::start_weave
+  if [ sloop::net::install_weave ]; then
+    if [ -z ${WEAVE_GW+x} ]; then
+      sloop::log::info "WEAVE_GW is unset";
+      weave launch $WEAVE_NODES
+      weave expose
+    else
+      sloop::log::info "WEAVE_GW is set to '$WEAVE_GW'";
+      route add $WEAVE_GW gw $(ip route show | grep default | awk '{ print $3}') 2> /dev/null
+      ip route del 0/0
+      weave launch $WEAVE_NODES
+      weave expose
+      route add default gw 10.32.0.1 weave
+    fi
+  fi
 }
 
 sloop::net::install_weave(){
@@ -34,4 +57,5 @@ sloop::net::install_weave(){
   sloop::log::info "Installing weave"
   curl -L git.io/weave -o /usr/local/bin/weave
   chmod a+x /usr/local/bin/weave
+  return 0
 }
