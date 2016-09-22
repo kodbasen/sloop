@@ -39,7 +39,7 @@ TIMEOUT_FOR_SERVICES=${TIMEOUT_FOR_SERVICES:-20}
 WEAVE_IMG_ARM="kodbasen/weaveexec:latest"
 WEAVE_IMG_AMD64="weaveworks/weaveexec:latest"
 WEAVE_MASTER_IP=${WEAVE_MASTER_IP:-"10.32.0.1"}
-WEAVE_PWD_FILE=${WEAVE_PWD_FILE}:-"$WORKDIR/weave_passwd"
+WEAVE_PWD_FILE=${WEAVE_PWD_FILE:-"$WORKDIR/weave_passwd"}
 API_IP=${API_IP:-"localhost"}
 TIMEOUT_FOR_SERVICES=20
 
@@ -231,12 +231,12 @@ sloop:weave() {
   # Weave password for encryption
   if [ -f "${WEAVE_PWD_FILE}" ]; then
     sloop:log:info "WEAVE_PWD_FILE is set to '$WEAVE_PWD_FILE'";
-    WEAVE_PASSWORD=$(cat ${WEAVE_PWD_FILE})
   else
     sloop:log:info "WEAVE_PWD_FILE is not set"
     sloop:log:info "creating password file, remember to change the password on all peers"
     echo "ch@ng3m3" > $WEAVE_PWD_FILE
   fi
+  WEAVE_PASSWORD=$(cat ${WEAVE_PWD_FILE})
 
   sloop:log:info "starting weave network ..."
   weave launch $WEAVE_NODES
