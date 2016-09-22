@@ -1,0 +1,545 @@
+#!/bin/bash
+
+set -e
+
+################################################################################
+# init
+################################################################################
+BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+WORKDIR=${WORKDIR:-/var/lib/kubelet}
+
+if [ ! -f "$WORKDIR/sloop.conf" ]; then
+
+  [ ! -d $WORKDIR ] && mkdir -p $WORKDIR
+  cat > "$WORKDIR/sloop.conf" <<- EOF
+# Kubernetes version
+K8S_VERSION=v1.3.6
+
+# Weave nodes (peers)
+# WEAVE_NODES=10.0.2.15
+
+#Enable debug
+#SLOOP_DEBUG=true
+
+# Kubernetes master
+# MASTER_IP=localhost
+EOF
+fi
+
+source $WORKDIR/sloop.conf
+
+[ -n "$SLOOP_DEBUG" ] && set -x
+
+BINDIR=/usr/local/bin
+DOCKER_SOCK=unix:///var/
+KUBELET_SRV_FILE=${KUBELET_SRV_FILE:-/run/systemd/system/kubelet.service}
+RESTART_POLICY=${RESTART_POLICY:-"unless-stopped"}
+ETCD_VERSION=${ETCD_VERSION:-"2.2.5"}
+TIMEOUT_FOR_SERVICES=${TIMEOUT_FOR_SERVICES:-20}
+WEAVE_IMG_ARM="kodbasen/weaveexec:latest"
+WEAVE_IMG_AMD64="weaveworks/weaveexec:latest"
+WEAVE_MASTER_IP=${WEAVE_MASTER_IP:-"10.32.0.1"}
+WEAVE_PWD_FILE=${WEAVE_PWD_FILE}:-"$WORKDIR/weave_passwd"
+API_IP=${API_IP:-"localhost"}
+TIMEOUT_FOR_SERVICES=20
+
+usage_no_exit() {
+    cat >&2 <<EOF
+Usage:
+sloop --help | help
+
+sloop config
+
+sloop start [master | worker | etcd | kubelet | weave]
+
+sloop stop
+
+EOF
+}
+
+usage() {
+    usage_no_exit
+    exit 1
+}
+
+handle_help_arg() {
+    if [ "$1" = "--help" ] ; then
+        usage_no_exit
+        exit 0
+    fi
+}
+
+handle_help_arg "$1" || handle_help_arg "--$1"
+
+################################################################################
+# utility
+################################################################################
+
+sloop:log:info() {
+  timestamp=$(date +"[%m%d %H:%M:%S]")
+  echo "+++ sloop $timestamp $1"
+  shift
+  for message; do
+    echo "    $message"
+  done
+}
+
+# Log an error and exit
+sloop:log:fatal() {
+  timestamp=$(date +"[%m%d %H:%M:%S]")
+  echo "!!! sloop $timestamp ${1-}" >&2
+  shift
+  for message; do
+    echo "    $message" >&2
+  done
+  exit 1
+}
+
+sloop:helpers:host_platform() {
+  local host_os
+  local host_arch
+  case "$(uname -s)" in
+    Linux)
+      host_os=linux;;
+    *)
+      kube::log::fatal "unsupported host OS, must be linux.";;
+  esac
+
+  case "$(uname -m)" in
+    x86_64*)
+      host_arch=amd64;;
+    i?86_64*)
+      host_arch=amd64;;
+    amd64*)
+      host_arch=amd64;;
+    aarch64*)
+      host_arch=arm64;;
+    arm64*)
+      host_arch=arm64;;
+    arm*)
+      host_arch=arm;;
+    ppc64le*)
+      host_arch=ppc64le;;
+    *)
+      sloop:log:fatal "unsupported host arch, must be x86_64, arm, arm64 or ppc64le.";;
+  esac
+  echo "${host_os}/${host_arch}"
+}
+
+sloop:http_call() {
+    addr="$1"
+    http_verb="$2"
+    url="$3"
+    shift 3
+    CURL_TMPOUT=/tmp/weave_curl_out_$$
+    HTTP_CODE=$(curl -o $CURL_TMPOUT -w '%{http_code}' --connect-timeout 3 -s -S -X $http_verb "$@" http://$addr$url) || return $?
+    case "$HTTP_CODE" in
+        2??) # 2xx -> not an error; output response on stdout
+            [ -f $CURL_TMPOUT ] && cat $CURL_TMPOUT
+            retval=0
+            ;;
+        404) # treat as error but swallow response
+            retval=4
+            ;;
+        *) # anything else is an error; output response on stderr
+            [ -f $CURL_TMPOUT ] && cat $CURL_TMPOUT >&2
+            retval=1
+    esac
+    rm -f $CURL_TMPOUT
+    return $retval
+}
+
+sloop:check_k8s_version(){
+  if [ ! -f "$WORKDIR/k8s-version" ]; then
+    sloop:log:info "unknown kubernetes version, removing binaries!"
+    rm -f $BINDIR/kubectl $BINDIR/hyperkube
+    sloop:log:info "writing kubernetes version"
+    mkdir -p $WORKDIR
+    echo "$K8S_VERSION" > "$WORKDIR/k8s-version"
+  fi
+
+  INSTALLED_K8S_VERSION=$(<${WORKDIR}/k8s-version)
+
+  if [ $INSTALLED_K8S_VERSION != $K8S_VERSION ]; then
+    sloop:log:info "upgrading Kubernetes to version $K8S_VERSION"
+    echo "$K8S_VERSION" > "$WORKDIR/k8s-version"
+    rm -f $BINDIR/kubectl $BINDIR/hyperkube
+  fi
+
+  sloop:log:info "Kubernetes $K8S_VERSION"
+}
+
+sloop:check_docker_running(){
+  if ! pgrep "docker" > /dev/null; then
+    sloop:log:fatal "Docker isn't running"
+  fi
+}
+
+sloop:check_not_running() {
+    RUN_STATUS=$(docker inspect --format='{{.State.Running}} {{.State.Status}} {{.Config.Image}}' $2 2>/dev/null) || true
+    case ${RUN_STATUS%:*} in
+        "true restarting $3")
+            echo "$2 is restarting" >&2
+            return 3
+            ;;
+        "true "*" $3")
+            echo "$2 is already running" >&2
+            return 1
+            ;;
+        "false "*" $3")
+            docker rm $2 >/dev/null
+            ;;
+        true*)
+            echo "found another running container named '$2'. Aborting." >&2
+            return 2
+            ;;
+        false*)
+            echo "Found another container named '$2'. Aborting." >&2
+            return 2
+            ;;
+    esac
+}
+
+sloop:assert_container_running() {
+  RUN_STATUS=$(docker inspect --format='{{.State.Running}}' $1 2>/dev/null) || true
+  case ${RUN_STATUS%:*} in
+    true*)
+    return 0;
+    ;;
+    false*)
+    return 1;
+    ;;
+    *)
+    return 1;
+    ;;
+  esac
+}
+
+sloop:weave() {
+  retval=0
+  sloop:assert_container_running "weave" || retval=$?
+  [ $retval = 0 ] && sloop:log:info "weave is running" && return 0
+  #[ $retval -gt 0 ] && sloop:log:fatal "weave is not running"
+
+  # Weave nodes
+  if [ -z ${WEAVE_NODES+x} ]; then
+    sloop:log:fatal "WEAVE_NODES is unset";
+  else
+    sloop:log:info "WEAVE_NODES is set to '$WEAVE_NODES'";
+  fi
+
+  # Weave password for encryption
+  if [ -f "${WEAVE_PWD_FILE}" ]; then
+    sloop:log:info "WEAVE_PWD_FILE is set to '$WEAVE_PWD_FILE'";
+    WEAVE_PASSWORD=$(cat ${WEAVE_PWD_FILE})
+  else
+    sloop:log:info "WEAVE_PWD_FILE is not set";
+  fi
+
+  sloop:log:info "starting weave network ..."
+  weave launch $WEAVE_NODES
+  weave expose
+}
+
+sloop:kube_proxy() {
+  retval=0
+  sloop:assert_container_running "kube_proxy" || retval=$?
+  [ $retval = 0 ] && sloop:log:info "weave is running" && return 0
+
+  sloop:log:info "starting kube-proxy..."
+  docker run -d \
+    --net=host \
+    --privileged \
+    --name kube_proxy \
+    --restart=${RESTART_POLICY} \
+    gcr.io/google_containers/hyperkube-${ARCH}:${K8S_VERSION} \
+    /hyperkube proxy \
+        --master=http://${MASTER_IP}:8080 \
+        --v=2
+}
+
+sloop:kubelet() {
+  retval=0
+  systemctl restart kubelet 2>/dev/null || retval=$?
+  [ $retval -gt 0 ] && sloop:log:fatal "start kubelet failed"
+}
+
+################################################################################
+# main
+################################################################################
+sloop:install_hyperkube(){
+  if [ ! -f "$BINDIR/hyperkube" ]; then
+    sloop:log:info "downloading hyperkube for native kubelet"
+    wget $RELEASE_URL/hyperkube -O $BINDIR/hyperkube
+    chmod a+x $BINDIR/hyperkube
+  fi
+}
+
+sloop:install_kubectl(){
+  if [ ! -f "$BINDIR/kubectl" ]; then
+    sloop:log:info "downloading kubectl"
+    wget $RELEASE_URL/kubectl -O $BINDIR/kubectl
+    chmod a+x $BINDIR/kubectl
+  fi
+}
+
+sloop:install_weave(){
+  if [ -f "/usr/local/bin/weave" ]; then
+    return 0
+  fi
+
+  case "$ARCH" in
+    amd64)
+    WEAVE_IMG=$WEAVE_IMG_AMD64
+    ;;
+    arm)
+    WEAVE_IMG=$WEAVE_IMG_ARM
+    ;;
+    arm64)
+    WEAVE_IMG=$WEAVE_IMG_ARM
+    ;;
+    *)
+    sloop:log:fatal "unsupported platform: $ARCH"
+    ;;
+  esac
+
+  if [ $ARCH == "amd64" ]; then
+    WEAVE_IMG=$WEAVE_IMG_AMD64
+  else
+    WEAVE_IMG=$WEAVE_IMG_ARM
+  fi
+
+  sloop:log:info "installing weave"
+  CONTAINER_NAME=weaveexec.$RANDOM
+  docker run --name=$CONTAINER_NAME --entrypoint="sh" $WEAVE_IMG > /dev/null 2>&1
+  docker cp $CONTAINER_NAME:/home/weave/weave /usr/local/bin
+  docker rm $CONTAINER_NAME
+
+  chmod a+x /usr/local/bin/weave
+  echo "ch@ng3m3" > $WEAVE_PWD_FILE
+
+  weave setup
+  return $?
+}
+
+sloop:install_binaries(){
+  sloop:check_k8s_version
+  mkdir -p $BINDIR
+  RELEASE_URL="https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/$ARCH"
+  sloop:install_hyperkube
+  sloop:install_kubectl
+  sloop:install_weave
+}
+
+sloop:install_kubelet_service() {
+  # Weave nodes
+  if [ -z ${MASTER_IP+x} ]; then
+    sloop:log:fatal "MASTER_IP is unset";
+  else
+    sloop:log:info "MASTER_IP is set to '$MASTER_IP'";
+  fi
+
+  if [ ! -f "$KUBELET_SRV_FILE" ]; then
+    sloop:log:info "installing kubelet service"
+    cat > $KUBELET_SRV_FILE <<- EOF
+[Unit]
+Description=Kubernetes Kubelet Server
+Documentation=https://github.com/GoogleCloudPlatform/kubernetes
+After=docker.service
+Requires=docker.service
+
+[Service]
+WorkingDirectory=${WORKDIR}
+ExecStart=/bin/sh -c "exec ${BINDIR}/hyperkube kubelet \\
+  --allow-privileged \\
+  --api-servers=http://${MASTER_IP}:8080 \\
+  --cluster-dns=10.0.0.10 \\
+  --cluster-domain=cluster.local \\
+  --v=2 \\
+  --hostname-override=\$(ip -o -4 addr list ${NET_INTERFACE} | awk '{print \$4}' | cut -d/ -f1) \\
+  --network-plugin=cni \
+  --network-plugin-dir=/etc/cni/net.d \\
+  --config=${WORKDIR}/manifests"
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  fi
+  sloop:log:info "enabling kubelet service"
+  systemctl enable kubelet
+}
+
+sloop:setup() {
+  sloop:install_weave
+  sloop:install_binaries
+  sloop:install_kubelet_service
+  sloop:check_docker_running
+}
+
+# Start etcd on the master node
+sloop:etcd() {
+  retval=0
+  sloop:assert_container_running "sloop-etcd" || retval=$?
+  [ $retval = 0 ] && sloop:log:info "etcd is running" && return 0
+
+  sloop:log:info "launching etcd..."
+
+  # TODO: Remove the 4001 port as it is deprecated
+  docker run -d \
+    --name sloop-etcd \
+    --restart=${RESTART_POLICY} \
+    -p 2379:2379 -p 2380:2380 -p 4001:4001 \
+    -v /var/lib/kubelet/etcd:/var/etcd \
+    gcr.io/google_containers/etcd-${ARCH}:${ETCD_VERSION} \
+    /usr/local/bin/etcd \
+      --listen-client-urls=http://0.0.0.0:2379,http://0.0.0.0:4001 \
+      --advertise-client-urls=http://localhost:2379,http://localhost:4001 \
+      --listen-peer-urls=http://0.0.0.0:2380 \
+      --data-dir=/var/etcd/data
+
+  # Wait for etcd to come up
+  local SECONDS=0
+  while [[ $(sloop:http_call localhost:2379 GET /v2/machines) != 0 ]]; do
+    ((SECONDS++))
+    if [[ ${SECONDS} == ${TIMEOUT_FOR_SERVICES} ]]; then
+      sloop:log:fatal "etcd failed to start!"
+    fi
+    sleep 1
+  done
+}
+
+sloop:copy_manifests() {
+  sloop:log:info "copying manifests from hyperkube image"
+  CONTAINER_NAME=hyperkube.$RANDOM
+
+  mkdir -p $WORKDIR
+  if [ -d "$WORKDIR/manifests" ]; then
+    sloop:log:info "removing old manifests"
+    rm -rf $WORKDIR/manifests
+  fi
+
+  docker run --name $CONTAINER_NAME \
+    gcr.io/google_containers/hyperkube-${ARCH}:${K8S_VERSION}
+
+  docker cp $CONTAINER_NAME:/etc/kubernetes/manifests-multi $WORKDIR/manifests
+  docker rm $CONTAINER_NAME
+}
+
+sloop:master() {
+  export MASTER_IP=${MASTER_IP:-"localhost"}
+  sloop:log:info "starting master"
+  sloop:setup
+  sloop:copy_manifests
+  sloop:weave
+  sloop:etcd
+  sloop:kubelet
+}
+
+sloop:worker() {
+  sloop:log:info "starting worker"
+  sloop:setup
+  sloop:weave
+  sloop:kube_proxy
+  sloop:kubelet
+}
+
+sloop:start() {
+  [ $# -gt 0 ] || usage
+  SUB_COMMAND=$1
+  shift 1
+
+  handle_help_arg "$1"
+
+  case "$SUB_COMMAND" in
+    weave)
+    sloop:weave
+    ;;
+    etcd)
+    sloop:etcd
+    ;;
+    kubelet)
+    sloop:kubelet
+    ;;
+    master)
+    sloop:master
+    ;;
+    worker)
+    sloop:worker
+    ;;
+    *)
+    echo "unknown start command '$SUB_COMMAND'" >&2
+    usage
+    ;;
+  esac
+}
+
+sloop:stop() {
+  sloop:log:info "stopping kubernetes"
+  systemctl stop kubelet
+  sloop:log:info "kubelet stopped"
+
+  retval=0
+  sloop:assert_container_running "sloop-etcd" || retval=$?
+  [ $retval = 0 ] && docker stop "sloop-etcd" && docker rm "sloop-etcd"
+  sloop:log:info "etcd stopped"
+
+  if [[ $(docker ps | grep "kube_" | awk '{print $1}' | wc -l) != 0 ]]; then
+    docker rm -f $(docker ps | grep "kube_" | awk '{print $1}')
+  fi
+  if [[ $(docker ps | grep "k8s_" | awk '{print $1}' | wc -l) != 0 ]]; then
+    docker rm -f $(docker ps | grep "k8s_" | awk '{print $1}')
+  fi
+
+  read -p "do you want to stop weave? [Y/n] " stop_weave
+  case $stop_weave in
+    [nN]*)
+      ;; # Do nothing
+    *)
+      weave stop
+  esac
+}
+
+# Require root
+if [[ "$(id -u)" != "0" ]]; then
+  sloop:log:fatal "please run as root"
+fi
+
+CURRENT_PLATFORM=$(sloop:helpers:host_platform)
+ARCH=${ARCH:-${CURRENT_PLATFORM##*/}}
+
+# checks
+sloop:check_docker_running
+
+[ $# -gt 0 ] || usage
+COMMAND=$1
+shift 1
+
+handle_help_arg "$1"
+
+case "$COMMAND" in
+    setup)
+    sloop:setup
+    ;;
+    config)
+    exec vi $WORKDIR/sloop.conf
+    ;;
+    start)
+    sloop:start "$@"
+    ;;
+    stop)
+    sloop:stop
+    ;;
+    install_binaries)
+    sloop:install_binaries
+    ;;
+    copy_manifests)
+    sloop:copy_manifests
+    ;;
+    *)
+    echo "Unknown sloop command '$COMMAND'" >&2
+    usage
+    ;;
+esac
