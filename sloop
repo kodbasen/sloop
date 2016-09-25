@@ -131,29 +131,6 @@ sloop:helpers:host_platform() {
   echo "${host_os}/${host_arch}"
 }
 
-sloop:http_call() {
-    addr="$1"
-    http_verb="$2"
-    url="$3"
-    shift 3
-    CURL_TMPOUT=/tmp/weave_curl_out_$$
-    HTTP_CODE=$(curl -o $CURL_TMPOUT -w '%{http_code}' --connect-timeout 3 -s -S -X $http_verb "$@" http://$addr$url || 4)
-    case "$HTTP_CODE" in
-        2??) # 2xx -> not an error; output response on stdout
-            [ -f $CURL_TMPOUT ] && cat $CURL_TMPOUT
-            retval=0
-            ;;
-        404) # treat as error but swallow response
-            retval=4
-            ;;
-        *) # anything else is an error; output response on stderr
-            [ -f $CURL_TMPOUT ] && cat $CURL_TMPOUT >&2
-            retval=1
-    esac
-    rm -f $CURL_TMPOUT
-    return $retval
-}
-
 sloop:check_k8s_version(){
   if [ ! -f "$WORKDIR/k8s-version" ]; then
     sloop:log:info "unknown kubernetes version, removing binaries!"
@@ -412,7 +389,7 @@ sloop:etcd() {
 
   # Wait for etcd to come up
   local SECONDS=0
-  while [[ $(curl -fsSL http://localhost:2379/health 2>&1 1>/dev/null; echo $?) != 0 ]]; do
+  while [[ $(curl -fsSL http://localhost:2379/health 2>&1 1>/dev/null; echo $?) || echo 1 != 0 ]]; do
     ((SECONDS++))
     if [[ ${SECONDS} == ${TIMEOUT_FOR_SERVICES} ]]; then
       sloop:log:fatal "etcd failed to start. Exiting..."
