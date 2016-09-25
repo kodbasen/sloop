@@ -42,6 +42,7 @@ WEAVE_MASTER_IP=${WEAVE_MASTER_IP:-"10.32.0.1"}
 WEAVE_PWD_FILE=${WEAVE_PWD_FILE:-"$WORKDIR/weave_passwd"}
 API_IP=${API_IP:-"localhost"}
 TIMEOUT_FOR_SERVICES=20
+IP_ADDRESS=$(ip -o -4 addr list $(ip -o -4 route show to default | awk '{print $5}' | head -1) | awk '{print $4}' | cut -d/ -f1 | head -1)
 
 usage_no_exit() {
     cat >&2 <<EOF
@@ -132,7 +133,7 @@ sloop:http_call() {
     url="$3"
     shift 3
     CURL_TMPOUT=/tmp/weave_curl_out_$$
-    HTTP_CODE=$(curl -o $CURL_TMPOUT -w '%{http_code}' --connect-timeout 3 -s -S -X $http_verb "$@" http://$addr$url &2>/dev/null) || return $?
+    HTTP_CODE=$(curl -o $CURL_TMPOUT -w '%{http_code}' --connect-timeout 3 -s -S -X $http_verb "$@" http://$addr$url || 4)
     case "$HTTP_CODE" in
         2??) # 2xx -> not an error; output response on stdout
             [ -f $CURL_TMPOUT ] && cat $CURL_TMPOUT
@@ -289,6 +290,9 @@ sloop:install_weave(){
   if [ -f "/usr/local/bin/weave" ]; then
     return 0
   fi
+
+  mkdir -p /opt/cni/bin
+  mkdir -p /etc/cni/net.d
 
   case "$ARCH" in
     amd64)
@@ -448,6 +452,20 @@ sloop:worker() {
   sloop:kubelet
 }
 
+sloop:info() {
+  read -d '' INFO <<- EOF || true
+--------------------------------------------------------------------------------
+IP address: ${IP_ADDRESS}
+Weave version:
+$(weave version)
+Kubernetes version: $(cat ${WORKDIR}/k8s-version)
+Docker version: $(docker version)
+--------------------------------------------------------------------------------
+EOF
+
+  echo "${INFO}"
+}
+
 sloop:start() {
   [ $# -gt 0 ] || usage
   SUB_COMMAND=$1
@@ -539,6 +557,9 @@ case "$COMMAND" in
     ;;
     copy_manifests)
     sloop:copy_manifests
+    ;;
+    info)
+    sloop:info
     ;;
     *)
     echo "Unknown sloop command '$COMMAND'" >&2
