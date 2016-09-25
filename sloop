@@ -132,7 +132,7 @@ sloop:http_call() {
     url="$3"
     shift 3
     CURL_TMPOUT=/tmp/weave_curl_out_$$
-    HTTP_CODE=$(curl -o $CURL_TMPOUT -w '%{http_code}' --connect-timeout 3 -s -S -X $http_verb "$@" http://$addr$url) || return $?
+    HTTP_CODE=$(curl -o $CURL_TMPOUT -w '%{http_code}' --connect-timeout 3 -s -S -X $http_verb "$@" http://$addr$url &2>/dev/null) || return $?
     case "$HTTP_CODE" in
         2??) # 2xx -> not an error; output response on stdout
             [ -f $CURL_TMPOUT ] && cat $CURL_TMPOUT
