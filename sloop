@@ -23,6 +23,9 @@ K8S_VERSION=v1.3.6
 
 # Kubernetes master
 # MASTER_IP=localhost
+
+# Kubelet hostname-override
+# HOSTNAME_OVERRIDE=$(hostname)
 EOF
 fi
 
@@ -43,6 +46,7 @@ WEAVE_PWD_FILE=${WEAVE_PWD_FILE:-"$WORKDIR/weave_passwd"}
 API_IP=${API_IP:-"localhost"}
 TIMEOUT_FOR_SERVICES=20
 IP_ADDRESS=$(ip -o -4 addr list $(ip -o -4 route show to default | awk '{print $5}' | head -1) | awk '{print $4}' | cut -d/ -f1 | head -1)
+HOSTNAME_OVERRIDE=${HOSTNAME_OVERRIDE:-"$IP_ADDRESS"}
 
 usage_no_exit() {
     cat >&2 <<EOF
@@ -362,8 +366,8 @@ ExecStart=/bin/sh -c "exec ${BINDIR}/hyperkube kubelet \\
   --cluster-dns=10.0.0.10 \\
   --cluster-domain=cluster.local \\
   --v=2 \\
-  --hostname-override=\$(ip -o -4 addr list ${NET_INTERFACE} | awk '{print \$4}' | cut -d/ -f1) \\
-  --network-plugin=cni \
+  --hostname-override=${HOSTNAME_OVERRIDE} \\
+  --network-plugin=cni \\
   --network-plugin-dir=/etc/cni/net.d \\
   --config=${WORKDIR}/manifests"
 
@@ -408,10 +412,10 @@ sloop:etcd() {
 
   # Wait for etcd to come up
   local SECONDS=0
-  while [[ $(sloop:http_call localhost:2379 GET /v2/machines) != 0 ]]; do
+  while [[ $(curl -fsSL http://localhost:2379/health 2>&1 1>/dev/null; echo $?) != 0 ]]; do
     ((SECONDS++))
     if [[ ${SECONDS} == ${TIMEOUT_FOR_SERVICES} ]]; then
-      sloop:log:fatal "etcd failed to start!"
+      sloop:log:fatal "etcd failed to start. Exiting..."
     fi
     sleep 1
   done
