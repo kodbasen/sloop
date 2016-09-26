@@ -16,7 +16,12 @@ if [ ! -f "$WORKDIR/sloop.conf" ]; then
 K8S_VERSION=v1.3.6
 
 # Weave nodes (peers)
-# WEAVE_NODES=10.0.2.15
+WEAVE_NODES=
+
+# Weave launch arguments
+WEAVE_ARGS="--ipalloc-init=observer"
+# or for weave "master"
+# WEAVE_ARGS=""
 
 #Enable debug
 #SLOOP_DEBUG=true
@@ -221,7 +226,7 @@ sloop:weave() {
   WEAVE_PASSWORD=$(cat ${WEAVE_PWD_FILE})
 
   sloop:log:info "starting weave network ..."
-  WEAVE_PASSWORD=$(cat ${WEAVE_PWD_FILE}) weave launch $WEAVE_NODES
+  WEAVE_PASSWORD=$(cat ${WEAVE_PWD_FILE}) weave launch $WEAVE_ARGS $WEAVE_NODES
   weave expose
 }
 
